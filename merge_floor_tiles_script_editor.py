@@ -11,8 +11,13 @@ Usage:
 
 Config:
     FILTER_MODE        — "all_mesh" / "name" / "metadata"
+    FLOOR_CATEGORIES   — Category values to match (FILTER_MODE="metadata")
+    FLOOR_FAMILY_NAMES — FamilyName values to match (FILTER_MODE="metadata")
     RESULT_PRIM_NAME   — Output mesh prim name
-    DEACTIVATE_ORIGINAL — Deactivate original tile meshes after merge
+    ORIGINAL_ACTION    — What to do with original tiles after merge:
+                         "deactivate" — set active=false
+                         "delete"     — remove prim from stage
+                         "none"       — leave as-is
     PLANE_Z_OFFSET     — Additional Z offset for the result plane
 """
 
@@ -21,17 +26,17 @@ import numpy as np
 from pxr import Usd, UsdGeom, Gf, Vt
 
 # ── Config ───────────────────────────────────────────────────────────────────
-FILTER_MODE        = "all_mesh"
+FILTER_MODE        = "metadata"
 
-FLOOR_CATEGORIES   = {"Floors", "Curtain Panels", "Access Floors"}
-FLOOR_FAMILY_NAMES = {"Access Floor Panel", "Floor", "System Panel", "Access Floor"}
+FLOOR_CATEGORIES   = {"Curtain Panels", "Walls", "Floors"}
+FLOOR_FAMILY_NAMES = {"System Panel", "Access Floor Panel", "Basic Wall", "Floor"}
 ATTR_CATEGORY      = "omni:hoops:metadata:Other:Category"
 ATTR_FAMILY_NAME   = "omni:hoops:metadata:Other:tn__FamilyName_mA"
 
 TILE_MESH_NAMES    = {"polySurface1"}
 
 RESULT_PRIM_NAME   = "FloorPlane_Merged"
-DEACTIVATE_ORIGINAL = True
+ORIGINAL_ACTION    = "deactivate"   # "deactivate" / "delete" / "none"
 PLANE_Z_OFFSET     = 0.0
 WELD_TOLERANCE     = 1e-3
 # ─────────────────────────────────────────────────────────────────────────────
@@ -202,10 +207,16 @@ def run():
         hi = Gf.Vec3f(*pts3d_result.max(axis=0))
         result_mesh.GetExtentAttr().Set(Vt.Vec3fArray([lo, hi]))
 
-        if DEACTIVATE_ORIGINAL:
+        if ORIGINAL_ACTION == "deactivate":
             for m in valid_meshes:
                 m.SetActive(False)
             print(f"[MergeFloorTiles] Deactivated {len(valid_meshes)} original tile(s)")
+        elif ORIGINAL_ACTION == "delete":
+            for m in valid_meshes:
+                stage.RemovePrim(m.GetPath())
+            print(f"[MergeFloorTiles] Deleted {len(valid_meshes)} original tile(s)")
+        else:
+            print(f"[MergeFloorTiles] Original tiles unchanged (ORIGINAL_ACTION='none')")
 
         stage.GetRootLayer().Save()
         print(f"[MergeFloorTiles] Done -> {result_path}")
